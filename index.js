@@ -28,6 +28,7 @@ function validate(options) {
  * @param {string} options.queueUrl
  * @param {string} options.region
  * @param {function} options.handleMessage
+ * @param {function} options.beforeHandleMessages
  * @param {array} options.messageAttributeNames
  * @param {number} options.batchSize
  * @param {object} options.sqs
@@ -39,6 +40,7 @@ function Consumer(options) {
 
   this.queueUrl = options.queueUrl;
   this.handleMessage = options.handleMessage;
+  this.beforeHandleMessages = options.beforeHandleMessages || function (cb) { cb(); };
   this.messageAttributeNames = options.messageAttributeNames || [];
   this.stopped = true;
   this.batchSize = options.batchSize || 1;
@@ -105,9 +107,11 @@ Consumer.prototype._handleSqsResponse = function (err, response) {
   debug(response);
 
   if (response && response.Messages && response.Messages.length > 0) {
-    async.each(response.Messages, this._processMessageBound, function () {
-      // start polling again once all of the messages have been processed
-      consumer._poll();
+    consumer.beforeHandleMessages(function() {
+      async.each(response.Messages, consumer._processMessageBound, function () {
+        // start polling again once all of the messages have been processed
+        consumer._poll();
+      });
     });
   } else {
     // there were no messages, so start polling again
